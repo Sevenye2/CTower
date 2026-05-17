@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm \"d:/program/02UnityProject/CARD_TOWER/Assets/Scripts/Config/GameConfigDatabase.cs\" \"d:/program/02UnityProject/CARD_TOWER/Assets/Scripts/Config/GameConfigDatabase.cs.meta\" \"d:/program/02UnityProject/CARD_TOWER/Assets/Scripts/Config/ConfigTableLoader.cs\" \"d:/program/02UnityProject/CARD_TOWER/Assets/Scripts/Config/ConfigTableLoader.cs.meta\" \"d:/program/02UnityProject/CARD_TOWER/Assets/Scripts/Config/CardConfig.cs\" \"d:/program/02UnityProject/CARD_TOWER/Assets/Scripts/Config/CardConfig.cs.meta\" \"d:/program/02UnityProject/CARD_TOWER/Assets/Scripts/Config/RelicConfig.cs\" \"d:/program/02UnityProject/CARD_TOWER/Assets/Scripts/Config/RelicConfig.cs.meta\" \"d:/program/02UnityProject/CARD_TOWER/Assets/Scripts/Config/TowerAttackConfig.cs\" \"d:/program/02UnityProject/CARD_TOWER/Assets/Scripts/Config/TowerAttackConfig.cs.meta\")"
+    ],
+    "additionalDirectories": [
+      "d:\\program\\02UnityProject\\CARD_TOWER\\Assets\\Scripts\\Config"
+    ]
+  }
+}

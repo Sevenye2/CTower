@@ -1,0 +1,47 @@
+{
+  "grunt_light": {
+    "EnemyPrefabId": 0,
+    "Count": 10,
+    "Interval": 1.2,
+    "BatchSize": 1,
+    "SpawnRadius": 35,
+    "Pattern": "Circle"
+  },
+  "grunt_wave": {
+    "EnemyPrefabId": 0,
+    "Count": 20,
+    "Interval": 0.7,
+    "BatchSize": 2,
+    "SpawnRadius": 35,
+    "Pattern": "Circle"
+  },
+  "grunt_rush": {
+    "EnemyPrefabId": 0,
+    "Count": 30,
+    "Interval": 0.4,
+    "BatchSize": 3,
+    "SpawnRadius": 40,
+    "Pattern": "Circle"
+  },
+  "fast_squad": {
+    "EnemyPrefabId": 0,
+    "Count": 12,
+    "Interval": 0.6,
+    "BatchSize": 2,
+    "SpawnRadius": 30,
+    "Pattern": "Circle",
+    "OverrideSpeed": 1.5,
+    "OverrideHealth": 80
+  },
+  "tank_pair": {
+    "EnemyPrefabId": 0,
+    "Count": 4,
+    "Interval": 3.0,
+    "BatchSize": 1,
+    "SpawnRadius": 25,
+    "Pattern": "Circle",
+    "OverrideHealth": 300,
+    "OverrideSpeed": 0.4,
+    "OverrideScale": 1.8
+  }
+}
