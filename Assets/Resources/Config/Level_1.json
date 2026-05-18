@@ -1,9 +1,0 @@
-{
-  "DurationSeconds": 180,
-  "Timeline": [
-    { "Time": 0,  "Groups": [ "grunt_light" ] },
-    { "Time": 20, "Groups": [ "grunt_wave" ] },
-    { "Time": 50, "Groups": [ "grunt_wave" ] },
-    { "Time": 90, "Groups": [ "grunt_rush" ] }
-  ]
-}

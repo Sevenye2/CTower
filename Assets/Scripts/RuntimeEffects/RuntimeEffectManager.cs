@@ -1,3 +1,4 @@
+using System;
 using Unity.Entities;
 
 namespace CardTower.RuntimeEffects
@@ -9,6 +10,13 @@ namespace CardTower.RuntimeEffects
         public static RuntimeEffectManager Instance => _instance ??= new RuntimeEffectManager();
 
         public RuntimeEffectContainer Effects { get; } = new RuntimeEffectContainer();
+
+        public static event Action OnEnemyKilled;
+
+        public static void NotifyEnemyKilled()
+        {
+            OnEnemyKilled?.Invoke();
+        }
 
         public RuntimeEffectContext CreateContext(EntityManager entityManager, Entity towerEntity = default)
         {

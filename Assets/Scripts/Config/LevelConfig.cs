@@ -58,10 +58,10 @@ namespace CardTower.Config
                 _globalStyles = LoadGlobalStyles();
 
             var levelCfg = LoadLevelConfig(levelId);
-            if (levelCfg == null)
-                return CreateDefault();
+            if (levelCfg != null)
+                return Resolve(levelCfg);
 
-            return Resolve(levelCfg);
+            return GenerateLevel(levelId);
         }
 
         static Dictionary<string, SpawnStyleConfig> LoadGlobalStyles()
@@ -116,30 +116,118 @@ namespace CardTower.Config
             return resolved;
         }
 
-        static ResolvedLevel CreateDefault()
+        // ── Procedural generation ──
+
+        static ResolvedLevel GenerateLevel(int levelId)
         {
+            var duration = GetDuration(levelId);
+            var waveCount = GetWaveCount(levelId);
+            var availableStyleKeys = GetAvailableStyleKeys(levelId);
+            var (healthMult, countMult, speedMult) = GetScaling(levelId);
+
+            var timeline = new List<ResolvedTimelineEntry>();
+
+            for (var w = 0; w < waveCount; w++)
+            {
+                var t = waveCount == 1
+                    ? 0f
+                    : (float)w / (waveCount - 1) * duration * 0.85f;
+
+                var groups = new List<SpawnStyleConfig>();
+
+                foreach (var key in availableStyleKeys)
+                {
+                    if (!_globalStyles.TryGetValue(key, out var baseStyle))
+                        continue;
+
+                    var cfg = CloneStyle(baseStyle);
+                    cfg.Count = Mathf.Max(1, Mathf.RoundToInt(cfg.Count * countMult));
+                    cfg.Interval = Mathf.Max(0.3f, cfg.Interval / Mathf.Sqrt(countMult));
+                    cfg.BatchSize = Mathf.Max(1, Mathf.RoundToInt(cfg.BatchSize * Mathf.Sqrt(countMult)));
+
+                    if (cfg.OverrideHealth > 0f)
+                        cfg.OverrideHealth *= healthMult;
+                    if (cfg.OverrideSpeed > 0f)
+                        cfg.OverrideSpeed = Mathf.Min(cfg.OverrideSpeed * speedMult, 4f);
+
+                    groups.Add(cfg);
+                }
+
+                timeline.Add(new ResolvedTimelineEntry
+                {
+                    Time = t,
+                    Groups = groups
+                });
+            }
+
             return new ResolvedLevel
             {
-                DurationSeconds = 180f,
-                Timeline = new List<ResolvedTimelineEntry>
-                {
-                    new ResolvedTimelineEntry
-                    {
-                        Time = 0f,
-                        Groups = new List<SpawnStyleConfig>
-                        {
-                            new SpawnStyleConfig
-                            {
-                                EnemyPrefabId = 0,
-                                Count = 9999,
-                                Interval = 1f,
-                                BatchSize = 1,
-                                SpawnRadius = 35f,
-                                Pattern = "Circle"
-                            }
-                        }
-                    }
-                }
+                DurationSeconds = duration,
+                Timeline = timeline
+            };
+        }
+
+        static float GetDuration(int levelId)
+        {
+            if (levelId >= 16) return 90f;
+            if (levelId >= 11) return 75f;
+            if (levelId >= 6) return 60f;
+            return 45f;
+        }
+
+        static int GetWaveCount(int levelId)
+        {
+            if (levelId >= 18) return 7;
+            if (levelId >= 13) return 6;
+            if (levelId >= 8) return 5;
+            if (levelId >= 4) return 4;
+            return 3;
+        }
+
+        static string[] GetAvailableStyleKeys(int levelId)
+        {
+            if (levelId >= 16)
+                return new[] { "grunt_light", "grunt_wave", "fast_squad", "grunt_rush", "tank_pair" };
+            if (levelId >= 11)
+                return new[] { "grunt_light", "grunt_wave", "fast_squad", "grunt_rush" };
+            if (levelId >= 6)
+                return new[] { "grunt_light", "grunt_wave", "fast_squad" };
+            return new[] { "grunt_light" };
+        }
+
+        static (float health, float count, float speed) GetScaling(int levelId)
+        {
+            var effectiveLevel = levelId;
+
+            var healthMult = 1f + (effectiveLevel - 1) * 0.05f;
+            var countMult = 1f + (effectiveLevel - 1) * 0.1f;
+            var speedMult = Mathf.Min(1.5f, 1f + (effectiveLevel - 1) * 0.025f);
+
+            // Endless mode: exponential scaling after level 20
+            if (levelId > 20)
+            {
+                var extra = levelId - 20;
+                healthMult *= Mathf.Pow(1.15f, extra);
+                countMult *= Mathf.Pow(1.1f, extra);
+            }
+
+            return (healthMult, countMult, speedMult);
+        }
+
+        static SpawnStyleConfig CloneStyle(SpawnStyleConfig src)
+        {
+            return new SpawnStyleConfig
+            {
+                EnemyPrefabId = src.EnemyPrefabId,
+                Count = src.Count,
+                Interval = src.Interval,
+                BatchSize = src.BatchSize,
+                SpawnRadius = src.SpawnRadius,
+                Pattern = src.Pattern,
+                OverrideHealth = src.OverrideHealth,
+                OverrideSpeed = src.OverrideSpeed,
+                OverrideScale = src.OverrideScale,
+                FixedPosition = src.FixedPosition
             };
         }
     }

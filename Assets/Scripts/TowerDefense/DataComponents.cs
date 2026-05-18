@@ -81,4 +81,18 @@ public struct HealthBarTag : IComponentData
 {
 }
 
+public struct BarrierTag : IComponentData
+{
+}
+
+public struct SlowTag : IComponentData
+{
+    public float SlowFactor;
+}
+
+public struct TowerShield : IComponentData
+{
+    public float Value;
+}
+
 

@@ -167,6 +167,9 @@ MonoBehaviour:
   - {fileID: 7182934567890123456, guid: d8ac8e3a2d164c4a9e8b7f6a5d4c3b35, type: 3}
   bulletPrefab: {fileID: 5603280815567409145, guid: 8af02623df003ca45be058fb24302a01, type: 3}
   healthBarPrefab: {fileID: 7329962750760042959, guid: 2ed29bd0e82dba04c801b696221cf461, type: 3}
+  barrierPrefab: {fileID: 4162116850244058695, guid: da0024c67510ccb4fb03eab37327ab6e, type: 3}
+  barrierHealthBarPrefab: {fileID: 7329962750760042959, guid: 432e6d7ea69b3c143b4118c4bf6682de, type: 3}
+  meteorVfxPrefab: {fileID: 8532281619633709112, guid: 65ae2569c5516be45838f6e65e0c7c58, type: 3}
 --- !u!1 &887700011
 GameObject:
   m_ObjectHideFlags: 0

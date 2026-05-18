@@ -28,8 +28,17 @@ public class SaveDataManager
     }
 
     [Serializable]
+    public struct ShopSlotSaveData
+    {
+        public string type;
+        public string id;
+        public bool isLocked;
+    }
+
+    [Serializable]
     public struct SaveData
     {
+        public bool isBattling;
         public int seed;
         public int level;
         public int maxHealth;
@@ -37,6 +46,8 @@ public class SaveDataManager
         public List<TowerAttackSaveData> towerAttacks;
         public List<RelicSaveData> relics;
         public List<CardSaveData> cards;
+        public List<ShopSlotSaveData> shopSlots;
+        public int shopRefreshCount;
     }
 
 
@@ -217,7 +228,11 @@ public class SaveDataManager
                 }
             },
             relics = new List<RelicSaveData>(),
-            cards = new List<CardSaveData>()
+            cards = new List<CardSaveData>
+            {
+                new CardSaveData { id = "meteor_strike", count = 1 }
+            },
+            shopSlots = new List<ShopSlotSaveData>()
         };
     }
 
@@ -226,5 +241,6 @@ public class SaveDataManager
         data.towerAttacks ??= new List<TowerAttackSaveData>();
         data.relics ??= new List<RelicSaveData>();
         data.cards ??= new List<CardSaveData>();
+        data.shopSlots ??= new List<ShopSlotSaveData>();
     }
 }

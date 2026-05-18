@@ -14,7 +14,22 @@ public class MainMenuUI : MonoBehaviour
 
     public void ContinueGameBtnClick()
     {
-        
+        if(SaveDataManager.instance.data.isBattling)
+        {
+            BlackUI.instance.DoFade(1,1, ()=>
+            {
+                BattleManager.instance.Begin();
+                gameObject.SetActive(false);
+            });
+        }
+        else
+        {
+            BlackUI.instance.DoFade(1,1, ()=>
+            {
+                UIManager.instance.shopUI.OpenUI();
+                gameObject.SetActive(false);
+            });
+        }
     }
 
     public void NewGameBtnClick()

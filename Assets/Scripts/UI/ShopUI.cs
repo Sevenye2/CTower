@@ -13,33 +13,41 @@ public class ShopUI : MonoBehaviour
     [SerializeField] Text goldText;
 
     int _refreshCount;
+    List<ShopItemModel> _pool;
     int Level => SaveDataManager.instance.data.level;
     public void OpenUI()
     {
+        SaveDataManager.instance.data.isBattling = false;
+        _refreshCount = SaveDataManager.instance.data.shopRefreshCount;
+
         GenerateShop();
+        UpdateGoldDisplay();
+        UpdateRefreshCost();
+
+        SaveDataManager.instance.Save();
         gameObject.SetActive(true);
     }
 
     public void Close()
     {
+
+        SaveDataManager.instance.data.isBattling = true;
+        SaveDataManager.instance.Save();
         gameObject.SetActive(false);
     }
 
     void GenerateShop()
     {
-        var pool = BuildItemPool();
-        Shuffle(pool);
+        var save = SaveDataManager.instance;
+        var seed = save.data.seed + Level * 997 + _refreshCount * 7919;
+        _pool = BuildItemPool();
+        Random.InitState(seed);
+        Shuffle(_pool);
 
         var items = new ShopItemModel[4];
 
-        // Preserve locked items from previous slots
-        for (var i = 0; i < 4 && i < itemViews.Length; i++)
-        {
-            if (itemViews[i].Model != null && itemViews[i].Model.IsLocked)
-            {
-                items[i] = itemViews[i].Model;
-            }
-        }
+        // Restore locked items from save data
+        LoadSlots(items, _pool);
 
         var poolIdx = 0;
         for (var i = 0; i < 4 && i < itemViews.Length; i++)
@@ -47,11 +55,11 @@ public class ShopUI : MonoBehaviour
             if (items[i] != null)
                 continue;
 
-            while (poolIdx < pool.Count && IsAlreadyInSlot(items, pool[poolIdx]))
+            while (poolIdx < _pool.Count && IsAlreadyInSlot(items, _pool[poolIdx]))
                 poolIdx++;
 
-            if (poolIdx < pool.Count)
-                items[i] = pool[poolIdx++];
+            if (poolIdx < _pool.Count)
+                items[i] = _pool[poolIdx++];
         }
 
         for (var i = 0; i < 4 && i < itemViews.Length; i++)
@@ -60,8 +68,51 @@ public class ShopUI : MonoBehaviour
                 itemViews[i].Setup(items[i], Level, OnBuyItem);
         }
 
-        UpdateGoldDisplay();
-        UpdateRefreshCost();
+        // Persist current lock state
+        SaveSlots();
+    }
+
+    void LoadSlots(ShopItemModel[] items, List<ShopItemModel> pool)
+    {
+        var saved = SaveDataManager.instance.data.shopSlots;
+        if (saved == null || saved.Count == 0)
+            return;
+
+        for (var i = 0; i < saved.Count && i < items.Length; i++)
+        {
+            var entry = saved[i];
+            if (string.IsNullOrEmpty(entry.id))
+                continue;
+
+            for (var p = 0; p < pool.Count; p++)
+            {
+                if (pool[p].Id == entry.id && pool[p].Type.ToString() == entry.type)
+                {
+                    pool[p].IsLocked = entry.isLocked;
+                    items[i] = pool[p];
+                    break;
+                }
+            }
+        }
+    }
+
+    public void SaveSlots()
+    {
+        var save = SaveDataManager.instance;
+        save.data.shopSlots.Clear();
+
+        for (var i = 0; i < itemViews.Length; i++)
+        {
+            var model = itemViews[i].Model;
+            save.data.shopSlots.Add(new SaveDataManager.ShopSlotSaveData
+            {
+                type = model?.Type.ToString() ?? "",
+                id = model?.Id ?? "",
+                isLocked = model?.IsLocked ?? false
+            });
+        }
+
+        save.Save();
     }
 
     List<ShopItemModel> BuildItemPool()
@@ -115,6 +166,8 @@ public class ShopUI : MonoBehaviour
             });
         }
 
+        Debug.Log($"Shop pool generated with {pool.Count} items.");
+
         return pool;
     }
 
@@ -159,7 +212,7 @@ public class ShopUI : MonoBehaviour
     {
         for (var i = list.Count - 1; i > 0; i--)
         {
-            var j = UnityEngine.Random.Range(0, i + 1);
+            var j = Random.Range(0, i + 1);
             (list[i], list[j]) = (list[j], list[i]);
         }
     }
@@ -171,6 +224,17 @@ public class ShopUI : MonoBehaviour
 
         if (!save.TrySpendGold(price))
             return;
+
+        // Find the slot that holds this model
+        var slot = -1;
+        for (var i = 0; i < itemViews.Length; i++)
+        {
+            if (itemViews[i].Model == model)
+            {
+                slot = i;
+                break;
+            }
+        }
 
         switch (model.Type)
         {
@@ -185,8 +249,44 @@ public class ShopUI : MonoBehaviour
                 break;
         }
 
+        // Refill the slot with next available item from pool
+        if (slot >= 0 && _pool != null)
+        {
+            for (var p = 0; p < _pool.Count; p++)
+            {
+                if (_pool[p].Id == model.Id && _pool[p].Type == model.Type)
+                    continue; // skip the bought item itself
+
+                if (IsAlreadyInSlotViews(_pool[p]))
+                    continue;
+
+                itemViews[slot].Setup(_pool[p], Level, OnBuyItem);
+                break;
+            }
+        }
+
+        SaveSlots();
         UpdateGoldDisplay();
         UpdateRefreshCost();
+        RefreshAllAffordability();
+    }
+
+    bool IsAlreadyInSlotViews(ShopItemModel item)
+    {
+        for (var i = 0; i < itemViews.Length; i++)
+        {
+            var m = itemViews[i].Model;
+            if (m != null && m.Id == item.Id && m.Type == item.Type)
+                return true;
+        }
+
+        return false;
+    }
+
+    void RefreshAllAffordability()
+    {
+        foreach (var v in itemViews)
+            v.RefreshAffordability();
     }
 
     void BuyTowerAttack(string id)
@@ -216,15 +316,25 @@ public class ShopUI : MonoBehaviour
         var save = SaveDataManager.instance;
 
         if (!save.TrySpendGold(cost))
+        {
+            UpdateGoldDisplay();
             return;
+        }
 
         _refreshCount++;
+        save.data.shopRefreshCount = _refreshCount;
+        save.data.shopSlots.Clear();
+        save.Save();
         GenerateShop();
+        UpdateGoldDisplay();
+        UpdateRefreshCost();
     }
 
     public void OnContinueClicked()
     {
         SaveDataManager.instance.IncrementLevel();
+        SaveDataManager.instance.data.shopRefreshCount = 0;
+        SaveDataManager.instance.data.shopSlots.Clear();
 
         if (BlackUI.instance != null)
         {
@@ -249,12 +359,12 @@ public class ShopUI : MonoBehaviour
     void UpdateGoldDisplay()
     {
         if (goldText != null)
-            goldText.text = SaveDataManager.instance.GetGold().ToString();
+            goldText.text = "金币 " + SaveDataManager.instance.GetGold().ToString();
     }
 
     void UpdateRefreshCost()
     {
         if (refreshCostText != null)
-            refreshCostText.text = GetRefreshCost().ToString();
+            refreshCostText.text = "刷新 " + GetRefreshCost().ToString();
     }
 }

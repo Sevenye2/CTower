@@ -11,6 +11,14 @@ namespace CardTower.TowerDefense
         public GameObject[] enemyPrefab;
         public GameObject bulletPrefab;
         public GameObject healthBarPrefab;
+        public GameObject barrierPrefab;
+        public GameObject barrierHealthBarPrefab;
+        public GameObject meteorVfxPrefab;
+
+        void Awake()
+        {
+            VfxPrefabRef.MeteorVfx = meteorVfxPrefab;
+        }
     }
 
 
@@ -24,7 +32,9 @@ namespace CardTower.TowerDefense
             AddComponent(entity, new PrefabComponentData()
             {
                 BulletPrefab = GetEntity(authoring.bulletPrefab, TransformUsageFlags.Dynamic),
-                HealthBarPrefab = GetEntity(authoring.healthBarPrefab, TransformUsageFlags.Dynamic)
+                HealthBarPrefab = GetEntity(authoring.healthBarPrefab, TransformUsageFlags.Dynamic),
+                BarrierPrefab = GetEntity(authoring.barrierPrefab, TransformUsageFlags.Dynamic),
+                BarrierHealthBarPrefab = GetEntity(authoring.barrierHealthBarPrefab, TransformUsageFlags.Dynamic)
             });
 
             var buffer = AddBuffer<EnemyPrefabBufferData>(entity);
@@ -46,6 +56,8 @@ namespace CardTower.TowerDefense
     {
         public Entity BulletPrefab;
         public Entity HealthBarPrefab;
+        public Entity BarrierPrefab;
+        public Entity BarrierHealthBarPrefab;
     }
 
     public struct EnemyPrefabBufferData : IBufferElementData

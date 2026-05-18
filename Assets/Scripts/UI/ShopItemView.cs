@@ -26,19 +26,22 @@ namespace CardTower.UI
         [SerializeField] Text nameText;
         [SerializeField] Image iconImage;
         [SerializeField] Text descriptionText;
-        [SerializeField] Button lockButton;
         [SerializeField] Text lockButtonText;
-        [SerializeField] Button buyButton;
         [SerializeField] Text buyButtonText;
+
+        static readonly Color AffordColor = new Color(0.2f, 0.2f, 0.2f);
+        static readonly Color CantAffordColor = new Color(0.5f, 0.5f, 0.5f);
 
         public ShopItemModel Model { get; private set; }
 
         System.Action<ShopItemModel> _onBuy;
+        int _level;
 
         public void Setup(ShopItemModel model, int level, System.Action<ShopItemModel> onBuy)
         {
             Model = model;
             _onBuy = onBuy;
+            _level = level;
 
             if (nameText != null)
                 nameText.text = model.DisplayName;
@@ -57,9 +60,22 @@ namespace CardTower.UI
 
             var price = model.GetPrice(level);
             if (buyButtonText != null)
+            {
                 buyButtonText.text = "Buy|" + price;
+                buyButtonText.color = SaveDataManager.instance.GetGold() >= price ? AffordColor : CantAffordColor;
+            }
 
             UpdateLockVisual();
+        }
+
+        public void RefreshAffordability()
+        {
+            if (Model == null || buyButtonText == null)
+                return;
+
+            buyButtonText.color = SaveDataManager.instance.GetGold() >= Model.GetPrice(_level)
+                ? AffordColor
+                : CantAffordColor;
         }
 
         public void RefreshPrice(int level)
@@ -67,6 +83,7 @@ namespace CardTower.UI
             if (Model == null || buyButtonText == null)
                 return;
 
+            _level = level;
             buyButtonText.text = "Buy|" + Model.GetPrice(level);
         }
 
@@ -77,10 +94,20 @@ namespace CardTower.UI
 
             Model.IsLocked = !Model.IsLocked;
             UpdateLockVisual();
+
+            var shop = GetComponentInParent<ShopUI>();
+            if (shop != null)
+                shop.SaveSlots();
         }
 
         public void OnBuyClicked()
         {
+            if (Model == null)
+                return;
+
+            if (SaveDataManager.instance.GetGold() < Model.GetPrice(_level))
+                return;
+
             _onBuy?.Invoke(Model);
         }
 

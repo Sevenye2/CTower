@@ -140,7 +140,6 @@ public class BattleManager : MonoBehaviour
         _currentResource = startingResource;
         _drawElapsed = 0f;
         goldEarned = 0f;
-        remainTime = 3 * 60f;
         BuildDrawPile();
         isBattling = true;
     }
@@ -184,8 +183,8 @@ public class BattleManager : MonoBehaviour
         remainTime -= dt;
         if (remainTime <= 0f)
         {
-            UIManager.instance.shopUI.gameObject.SetActive(true);
             End();
+            UIManager.instance.shopUI.OpenUI();
             return;
         }
 
@@ -231,6 +230,7 @@ public class BattleManager : MonoBehaviour
         _discardPile.Clear();
 
         var list = new List<string>(startingDeckIds);
+        list.Add("meteor_strike");
         for (var i = list.Count - 1; i > 0; i--)
         {
             var j = UnityEngine.Random.Range(0, i + 1);
@@ -262,6 +262,14 @@ public class BattleManager : MonoBehaviour
         PlayEffect(cardId);
         DispatchCardPlayEffects();
         return true;
+    }
+
+    public void RefundCard(string cardId, int manaCost)
+    {
+        _currentResource += manaCost;
+        _discardPile.Remove(cardId);
+        _handCardIds.Add(cardId);
+        _pendingDraws.Enqueue(cardId);
     }
 
     void PlayEffect(string cardId)

@@ -1,3 +1,4 @@
+using CardTower.RuntimeEffects;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
@@ -11,11 +12,15 @@ namespace CardTower.TowerDefense
     public partial struct HealthBarUpdateSystem : ISystem
     {
         EntityQuery _enemyQuery;
+        EntityQuery _barrierQuery;
 
         public void OnCreate(ref SystemState state)
         {
             _enemyQuery = SystemAPI.QueryBuilder()
                 .WithAll<EnemyTag, Health>()
+                .Build();
+            _barrierQuery = SystemAPI.QueryBuilder()
+                .WithAll<BarrierTag, Health>()
                 .Build();
         }
 
@@ -24,6 +29,7 @@ namespace CardTower.TowerDefense
             var camRot = (quaternion)UnityEngine.Camera.main.transform.rotation;
             var em = state.EntityManager;
             var ecb = new EntityCommandBuffer(Allocator.TempJob);
+            var goldMultiplier = RuntimeEffectManager.Instance.Effects.CollectTowerModifiers().GoldMultiplier;
 
             // ── Destroy dying enemies (main thread: gold is managed) ──
             var enemyEntities = _enemyQuery.ToEntityArray(Allocator.TempJob);
@@ -34,9 +40,23 @@ namespace CardTower.TowerDefense
                 if (enemyHealths[i].Current <= 0f)
                 {
                     ecb.DestroyEntity(enemyEntities[i]);
-                    BattleManager.instance.goldEarned += 1f;
+                    BattleManager.instance.goldEarned += 1f * goldMultiplier;
+                    RuntimeEffectManager.NotifyEnemyKilled();
                 }
             }
+
+            // ── Destroy dead barriers ──
+            var barrierEntities = _barrierQuery.ToEntityArray(Allocator.TempJob);
+            var barrierHealths = _barrierQuery.ToComponentDataArray<Health>(Allocator.TempJob);
+
+            for (var i = 0; i < barrierEntities.Length; i++)
+            {
+                if (barrierHealths[i].Current <= 0f)
+                    ecb.DestroyEntity(barrierEntities[i]);
+            }
+
+            barrierEntities.Dispose();
+            barrierHealths.Dispose();
 
             enemyEntities.Dispose();
             enemyHealths.Dispose();

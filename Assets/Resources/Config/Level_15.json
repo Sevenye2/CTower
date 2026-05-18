@@ -1,0 +1,11 @@
+{
+  "DurationSeconds": 75,
+  "Timeline": [
+    { "Time": 0,  "Groups": [ "grunt_light" ] },
+    { "Time": 10, "Groups": [ "grunt_wave" ] },
+    { "Time": 22, "Groups": [ "fast_squad", "grunt_light" ] },
+    { "Time": 34, "Groups": [ "grunt_rush" ] },
+    { "Time": 46, "Groups": [ "grunt_wave", "fast_squad" ] },
+    { "Time": 58, "Groups": [ "grunt_rush", "fast_squad", "grunt_wave" ] }
+  ]
+}
