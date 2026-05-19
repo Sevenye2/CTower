@@ -49,6 +49,7 @@ namespace CardTower.UI
         float _animatedScaleMul = 1f;
 
         public CardConfig Config => _config;
+        public bool IsConsumed => _consumed;
 
         void Awake()
         {
@@ -235,8 +236,8 @@ namespace CardTower.UI
             }
 
             _consumed = true;
-            onPlayed.Invoke();
             Destroy(gameObject);
+            onPlayed.Invoke();
         }
     }
 }

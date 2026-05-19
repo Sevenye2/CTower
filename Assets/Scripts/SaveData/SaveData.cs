@@ -24,7 +24,6 @@ public class SaveDataManager
     public struct CardSaveData
     {
         public string id;
-        public int count;
     }
 
     [Serializable]
@@ -62,7 +61,7 @@ public class SaveDataManager
 
     private static SaveDataManager _instance;
 
-    public SaveData data ;
+    public SaveData data;
     public bool isPlaying { get; private set; }
 
     private string DataPath =>
@@ -192,22 +191,9 @@ public class SaveDataManager
 
         EnsureListData();
         var cards = data.cards;
-        for (var i = 0; i < cards.Count; i++)
-        {
-            var card = cards[i];
-            if (card.id != id)
-                continue;
-
-            card.count += count;
-            cards[i] = card;
-            Save();
-            return;
-        }
-
         cards.Add(new CardSaveData
         {
             id = id,
-            count = count
         });
         Save();
     }
@@ -230,7 +216,7 @@ public class SaveDataManager
             relics = new List<RelicSaveData>(),
             cards = new List<CardSaveData>
             {
-                new CardSaveData { id = "meteor_strike", count = 1 }
+                new CardSaveData { id = "meteor_strike"}
             },
             shopSlots = new List<ShopSlotSaveData>()
         };

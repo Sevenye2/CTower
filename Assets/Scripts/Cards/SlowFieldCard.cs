@@ -14,6 +14,7 @@ namespace CardTower.Cards
         const float AoeRadius = 5f;
         const float SlowFactor = 0.2f;
         const float Duration = 10f;
+        static readonly Color IndicatorColor = new(0.2f, 0.4f, 1f, 0.5f);
 
         public override CardConfig Config => new CardConfig
         {
@@ -33,8 +34,8 @@ namespace CardTower.Cards
         {
             var em = context.EntityManager;
 
-            // ── Phase 1: targeting ──
-            var target = await WaitForGroundTarget();
+            // Phase 1: targeting
+            var target = await GroundTargetingHelper.WaitForGroundTarget(AoeRadius, IndicatorColor, "SlowFieldIndicator");
             if (target == null)
             {
                 BattleManager.instance.RefundCard(Config.Id, Config.ManaCost);
@@ -45,131 +46,52 @@ namespace CardTower.Cards
             var indicator = CreateSlowFieldIndicator(center);
             var affectedEntities = new NativeList<Entity>(Allocator.Temp);
 
-            // ── Phase 2: apply slow to enemies in range ──
+            // Phase 2: apply slow to enemies in range
             using (var q = em.CreateEntityQuery(
-                ComponentType.ReadOnly<EnemyTag>(),
-                ComponentType.ReadWrite<MoveSpeed>(),
+                ComponentType.ReadOnly<EntityType>(),
                 ComponentType.ReadOnly<LocalTransform>()))
             {
                 using var entities = q.ToEntityArray(Allocator.Temp);
+                using var types = q.ToComponentDataArray<EntityType>(Allocator.Temp);
                 var cxz = new float2(center.x, center.z);
                 var radiusSq = AoeRadius * AoeRadius;
 
-                foreach (var e in entities)
+                for (var j = 0; j < entities.Length; j++)
                 {
+                    if (types[j].Value != EntityKind.Enemy)
+                        continue;
+
+                    var e = entities[j];
                     var lt = em.GetComponentData<LocalTransform>(e);
                     var pxz = new float2(lt.Position.x, lt.Position.z);
                     if (math.lengthsq(pxz - cxz) > radiusSq)
                         continue;
 
-                    if (!em.HasComponent<SlowTag>(e))
-                    {
-                        em.AddComponentData(e, new SlowTag { SlowFactor = SlowFactor });
-                    }
-                    else
-                    {
-                        var st = em.GetComponentData<SlowTag>(e);
-                        st.SlowFactor = math.max(st.SlowFactor, SlowFactor);
-                        em.SetComponentData(e, st);
-                    }
-
+                    var buf = em.GetBuffer<BuffInstance>(e);
+                    // buf.Add(new BuffInstance { Type = BuffType.Slow, Value = 1f - SlowFactor });
                     affectedEntities.Add(e);
                 }
             }
 
-            // ── Phase 3: wait for duration ──
+            // Phase 3: wait for duration
             await UniTask.Delay((int)(Duration * 1000f));
 
-            // ── Phase 4: remove slow ──
+            // Phase 4: remove slow
             foreach (var e in affectedEntities)
             {
-                if (em.Exists(e) && em.HasComponent<SlowTag>(e))
+                if (em.Exists(e) && em.HasBuffer<BuffInstance>(e))
                 {
-                    var st = em.GetComponentData<SlowTag>(e);
-                    st.SlowFactor = 0f;
-                    em.RemoveComponent<SlowTag>(e);
+                    var buf = em.GetBuffer<BuffInstance>(e);
+                    for (var j = buf.Length - 1; j >= 0; j--)
+                    {
+          
+                    }
                 }
             }
 
             affectedEntities.Dispose();
             if (indicator != null)
                 Object.Destroy(indicator);
-        }
-
-        static async UniTask<float3?> WaitForGroundTarget()
-        {
-            var indicator = CreateGroundIndicator();
-
-            try
-            {
-                while (true)
-                {
-                    if (!BattleManager.instance.isBattling)
-                        return null;
-
-                    if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape))
-                        return null;
-
-                    UpdateIndicatorPosition(indicator);
-
-                    if (Input.GetMouseButtonDown(0))
-                    {
-                        var pos = GetGroundPosition();
-                        if (pos.HasValue)
-                            return pos.Value;
-                    }
-
-                    await UniTask.Yield(PlayerLoopTiming.Update);
-                }
-            }
-            finally
-            {
-                if (indicator != null)
-                    Object.Destroy(indicator);
-            }
-        }
-
-        static float3? GetGroundPosition()
-        {
-            var ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-            var plane = new Plane(Vector3.up, Vector3.zero);
-            if (plane.Raycast(ray, out var dist))
-                return (float3)ray.GetPoint(dist);
-
-            return null;
-        }
-
-        static void UpdateIndicatorPosition(GameObject indicator)
-        {
-            if (indicator == null) return;
-            var pos = GetGroundPosition();
-            if (pos.HasValue)
-                indicator.transform.position = (Vector3)pos.Value;
-        }
-
-        static GameObject CreateGroundIndicator()
-        {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            go.name = "SlowFieldIndicator";
-            Object.Destroy(go.GetComponent<Collider>());
-            go.transform.localScale = new Vector3(AoeRadius * 2f, 0.12f, AoeRadius * 2f);
-            var r = go.GetComponent<MeshRenderer>();
-            var shader = Shader.Find("Universal Render Pipeline/Lit")
-                         ?? Shader.Find("Unlit/Color")
-                         ?? Shader.Find("Sprites/Default");
-            var mat = new Material(shader);
-            if (mat.HasProperty("_BaseColor"))
-                mat.SetColor("_BaseColor", new Color(0.2f, 0.4f, 1f, 0.5f));
-            else
-                mat.color = new Color(0.2f, 0.4f, 1f, 0.5f);
-            mat.SetFloat("_Surface", 1f);
-            mat.SetFloat("_Blend", 1f);
-            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            mat.renderQueue = 3000;
-            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            r.receiveShadows = false;
-            r.material = mat;
-            return go;
         }
 
         static GameObject CreateSlowFieldIndicator(float3 center)

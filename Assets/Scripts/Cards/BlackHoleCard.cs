@@ -47,8 +47,8 @@ namespace CardTower.Cards
             var enemies = CollectLivingEnemies(em);
             foreach (var e in enemies)
             {
-                if (em.Exists(e) && !em.HasComponent<SuctionStunTag>(e))
-                    em.AddComponent<SuctionStunTag>(e);
+                if (em.Exists(e) && !em.HasComponent<Stunned>(e))
+                    em.AddComponent<Stunned>(e);
             }
 
             var holeF3 = (float3)holePos;
@@ -83,27 +83,31 @@ namespace CardTower.Cards
         static bool TryGetTowerWorldPosition(EntityManager em, out float3 towerWorld)
         {
             towerWorld = default;
-            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<LocalTransform>(), ComponentType.ReadOnly<TowerTag>());
-            if (q.IsEmptyIgnoreFilter)
-                return false;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<LocalTransform>(), ComponentType.ReadOnly<EntityType>());
             using var arr = q.ToComponentDataArray<LocalTransform>(Allocator.Temp);
-            if (arr.Length == 0)
-                return false;
-
-            towerWorld = arr[0].Position;
-            return true;
+            using var types = q.ToComponentDataArray<EntityType>(Allocator.Temp);
+            for (var i = 0; i < types.Length; i++)
+            {
+                if (types[i].Value == EntityKind.Tower)
+                {
+                    towerWorld = arr[i].Position;
+                    return true;
+                }
+            }
+            return false;
         }
 
         static List<Entity> CollectLivingEnemies(EntityManager em)
         {
             var list = new List<Entity>();
-            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<EnemyTag>(), ComponentType.ReadWrite<Health>());
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<EntityType>(), ComponentType.ReadWrite<Health>());
             using var ents = q.ToEntityArray(Allocator.Temp);
+            using var types = q.ToComponentDataArray<EntityType>(Allocator.Temp);
             for (var i = 0; i < ents.Length; i++)
             {
-                var e = ents[i];
-                if (!em.HasComponent<Health>(e))
+                if (types[i].Value != EntityKind.Enemy)
                     continue;
+                var e = ents[i];
                 var hp = em.GetComponentData<Health>(e);
                 if (hp.Current <= 0f)
                     continue;
@@ -116,8 +120,8 @@ namespace CardTower.Cards
         static void PullEnemiesToward(EntityManager em, float3 hole, float dt)
         {
             using var q = em.CreateEntityQuery(
-                ComponentType.ReadOnly<EnemyTag>(),
-                ComponentType.ReadOnly<SuctionStunTag>(),
+                ComponentType.ReadOnly<EntityType>(),
+                ComponentType.ReadOnly<Stunned>(),
                 ComponentType.ReadWrite<LocalTransform>());
             using var ents = q.ToEntityArray(Allocator.Temp);
             foreach (var e in ents)

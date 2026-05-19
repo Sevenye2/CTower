@@ -8,7 +8,7 @@
     "Pattern": "Circle"
   },
   "grunt_wave": {
-    "EnemyPrefabId": 0,
+    "EnemyPrefabId": 1,
     "Count": 20,
     "Interval": 0.7,
     "BatchSize": 2,

@@ -1,130 +1,165 @@
+using System;
+using Unity.Burst;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
-using Unity.Burst;
-using Unity.Collections;
 
 namespace CardTower.TowerDefense
 {
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(EnemyMoveSystem))]
+    [UpdateBefore(typeof(TransformSystemGroup))]
     public partial struct EnemyAttackSystem : ISystem
     {
-        EntityQuery _barrierQuery;
+        Entity _bulletPrefab;
+        bool _initialized;
 
         public void OnCreate(ref SystemState state)
         {
-            _barrierQuery = SystemAPI.QueryBuilder()
-                .WithAll<BarrierTag, Health, LocalTransform>()
-                .Build();
+            state.RequireForUpdate<PrefabComponentData>();
         }
 
-        [BurstCompile]
+        private static void MyTick(float dt)
+        {
+        }
+
         public void OnUpdate(ref SystemState state)
         {
-            Entity towerEntity = Entity.Null;
-            float3 towerPos = default;
-            foreach (var (lt, e) in SystemAPI.Query<RefRO<LocalTransform>>().WithAll<TowerTag>().WithEntityAccess())
+            if (!_initialized)
             {
-                towerEntity = e;
-                towerPos = lt.ValueRO.Position;
-                break;
+                _bulletPrefab = SystemAPI.GetSingleton<PrefabComponentData>().EnemyBulletPrefab;
+                _initialized = true;
             }
 
-            if (towerEntity == Entity.Null || !state.EntityManager.HasComponent<Health>(towerEntity))
+            var ecb = new EntityCommandBuffer(Allocator.TempJob);
+
+            var job = new EnemyAttackJob
+            {
+                Time = (float)SystemAPI.Time.ElapsedTime,
+                HealthLookup = SystemAPI.GetComponentLookup<Health>(true),
+                TransformLookup = SystemAPI.GetComponentLookup<LocalTransform>(true),
+                BulletPrefab = _bulletPrefab,
+                ECB = ecb.AsParallelWriter()
+            };
+            state.Dependency = job.ScheduleParallel(state.Dependency);
+
+            state.Dependency.Complete();
+            ecb.Playback(state.EntityManager);
+            ecb.Dispose();
+        }
+    }
+
+    [BurstCompile]
+    [WithAll(typeof(EntityType))]
+    [WithNone(typeof(Stunned))]
+    partial struct EnemyAttackJob : IJobEntity
+    {
+        [ReadOnly] public float Time;
+        [ReadOnly] public ComponentLookup<Health> HealthLookup;
+
+        [NativeDisableContainerSafetyRestriction] [ReadOnly]
+        public ComponentLookup<LocalTransform> TransformLookup;
+
+        [ReadOnly] public Entity BulletPrefab;
+        public EntityCommandBuffer.ParallelWriter ECB;
+
+        void Execute([ChunkIndexInQuery] int sortKey, ref LocalTransform lt,
+            ref EnemyAttackState atkState, in EnemyAttackConfig atkCfg,
+            in EntityModifiers modifiers, in CurrentTarget target,
+            in EntityType selfType)
+        {
+            if (selfType.Value != EntityKind.Enemy)
                 return;
-
-            var time = (float)SystemAPI.Time.ElapsedTime;
-            var hasBarriers = !_barrierQuery.IsEmptyIgnoreFilter;
-
-            // Collect barrier positions once per frame
-            NativeArray<Entity> barrierEntities = default;
-            NativeArray<LocalTransform> barrierLts = default;
-            NativeArray<Health> barrierHealths = default;
-            if (hasBarriers)
+            if (target.Value == Entity.Null || target.Distance > atkCfg.AttackRange)
             {
-                barrierEntities = _barrierQuery.ToEntityArray(Allocator.Temp);
-                barrierLts = _barrierQuery.ToComponentDataArray<LocalTransform>(Allocator.Temp);
-                barrierHealths = _barrierQuery.ToComponentDataArray<Health>(Allocator.Temp);
+                UpdateScale(ref lt, Time, atkState.LastHitTime);
+                return;
             }
 
-            foreach (var (lt, atkCfg, atkState) in SystemAPI
-                         .Query<RefRO<LocalTransform>, RefRO<EnemyAttackConfig>, RefRW<EnemyAttackState>>()
-                         .WithAll<EnemyTag>()
-                         .WithNone<SuctionStunTag>())
+            if (Time >= atkState.NextHitTime)
             {
-                var enemyPos = lt.ValueRO.Position;
-                var dist = math.distance(
-                    new float3(enemyPos.x, 0f, enemyPos.z),
-                    new float3(towerPos.x, 0f, towerPos.z));
-                if (dist > atkCfg.ValueRO.AttackRange)
-                    continue;
-
-                ref var st = ref atkState.ValueRW;
-                if (time < st.NextHitTime)
-                    continue;
-
-                st.NextHitTime = time + atkCfg.ValueRO.HitIntervalSeconds;
-                var damage = atkCfg.ValueRO.DamagePerHit;
-
-                // ── Barrier priority: attack nearest barrier in range ──
-                if (hasBarriers)
+                var hp = HealthLookup[target.Value];
+                if (hp.Current > 0f)
                 {
-                    Entity closestBarrier = Entity.Null;
-                    float closestBarrierDist = float.MaxValue;
-                    for (var i = 0; i < barrierEntities.Length; i++)
-                    {
-                        if (barrierHealths[i].Current <= 0f)
-                            continue;
-                        var bpos = barrierLts[i].Position;
-                        var bdist = math.distance(
-                            new float3(enemyPos.x, 0f, enemyPos.z),
-                            new float3(bpos.x, 0f, bpos.z));
-                        if (bdist <= atkCfg.ValueRO.AttackRange && bdist < closestBarrierDist)
-                        {
-                            closestBarrierDist = bdist;
-                            closestBarrier = barrierEntities[i];
-                        }
-                    }
+                    atkState.NextHitTime = Time + atkCfg.HitIntervalSeconds;
+                    atkState.LastHitTime = Time;
 
-                    if (closestBarrier != Entity.Null)
+                    var damage = atkCfg.DamagePerHit * modifiers.DamageDealt;
+
+                    if (atkCfg.IsRanged && BulletPrefab != Entity.Null)
                     {
-                        var bhp = state.EntityManager.GetComponentData<Health>(closestBarrier);
-                        bhp.Current -= damage;
-                        state.EntityManager.SetComponentData(closestBarrier, bhp);
-                        continue; // skip attacking tower
+                        SpawnBullet(sortKey, lt.Position, target.Value,
+                            TransformLookup[target.Value].Position, damage, atkCfg, Time,
+                            BulletPrefab, ECB);
+                    }
+                    else
+                    {
+                        ApplyMeleeDamage(sortKey, target.Value, damage, hp, ECB);
                     }
                 }
-
-                // ── Tower shield absorbs damage first ──
-                if (state.EntityManager.HasComponent<TowerShield>(towerEntity))
-                {
-                    var shield = state.EntityManager.GetComponentData<TowerShield>(towerEntity);
-                    if (shield.Value > 0f)
-                    {
-                        if (shield.Value >= damage)
-                        {
-                            shield.Value -= damage;
-                            state.EntityManager.SetComponentData(towerEntity, shield);
-                            continue;
-                        }
-                        damage -= shield.Value;
-                        shield.Value = 0f;
-                        state.EntityManager.SetComponentData(towerEntity, shield);
-                    }
-                }
-
-                // ── Damage tower health ──
-                var hp = state.EntityManager.GetComponentData<Health>(towerEntity);
-                hp.Current -= damage;
-                state.EntityManager.SetComponentData(towerEntity, hp);
             }
 
-            if (hasBarriers)
+            UpdateScale(ref lt, Time, atkState.LastHitTime);
+        }
+
+        static void SpawnBullet(int sortKey, float3 enemyPos, Entity targetEntity,
+            float3 targetPos, float damage, in EnemyAttackConfig cfg, float time,
+            Entity bulletPrefab, EntityCommandBuffer.ParallelWriter ecb)
+        {
+            var bullet = ecb.Instantiate(sortKey, bulletPrefab);
+            ecb.RemoveComponent<Bullet>(sortKey, bullet);
+            ecb.SetComponent(sortKey, bullet, new EntityType { Value = EntityKind.EnemyBullet });
+            ecb.AddComponent<BattleEntity>(sortKey, bullet);
+            ecb.SetComponent(sortKey, bullet, LocalTransform.FromPosition(enemyPos));
+            ecb.AddComponent<EnemyBullet>(sortKey, bullet, new EnemyBullet
             {
-                barrierEntities.Dispose();
-                barrierLts.Dispose();
-                barrierHealths.Dispose();
+                StartPos = enemyPos,
+                TargetPos = targetPos,
+                StartTime = time,
+                Duration = cfg.BulletDuration,
+                MaxHeight = cfg.BulletMaxHeight,
+                Damage = damage,
+                Target = targetEntity
+            });
+        }
+
+        static void ApplyMeleeDamage(int sortKey, Entity targetEntity, float damage,
+            Health hp, EntityCommandBuffer.ParallelWriter ecb)
+        {
+            if (hp.Shield > 0f)
+            {
+                if (hp.Shield >= damage)
+                {
+                    hp.Shield -= damage;
+                    ecb.SetComponent(sortKey, targetEntity, hp);
+                    return;
+                }
+
+                damage -= hp.Shield;
+                hp.Shield = 0f;
+            }
+
+            hp.Current -= damage;
+            ecb.SetComponent(sortKey, targetEntity, hp);
+        }
+
+        static void UpdateScale(ref LocalTransform lt, float time, float lastHitTime)
+        {
+            const float duration = 0.3f;
+            const float punch = 0.3f;
+            var elapsed = time - lastHitTime;
+            if (elapsed < duration)
+            {
+                var half = duration * 0.5f;
+                lt.Scale = elapsed < half
+                    ? 1f + punch * (elapsed / half)
+                    : 1f + punch * (1f - (elapsed - half) / half);
+            }
+            else
+            {
+                lt.Scale = 1f;
             }
         }
     }

@@ -17,13 +17,13 @@ public class ShopUI : MonoBehaviour
     int Level => SaveDataManager.instance.data.level;
     public void OpenUI()
     {
-        SaveDataManager.instance.data.isBattling = false;
         _refreshCount = SaveDataManager.instance.data.shopRefreshCount;
 
         GenerateShop();
         UpdateGoldDisplay();
         UpdateRefreshCost();
 
+        SaveDataManager.instance.data.isBattling = false;
         SaveDataManager.instance.Save();
         gameObject.SetActive(true);
     }
@@ -332,23 +332,24 @@ public class ShopUI : MonoBehaviour
 
     public void OnContinueClicked()
     {
-        SaveDataManager.instance.IncrementLevel();
-        SaveDataManager.instance.data.shopRefreshCount = 0;
-        SaveDataManager.instance.data.shopSlots.Clear();
+        var save = SaveDataManager.instance;
+        save.IncrementLevel();
+        save.data.shopRefreshCount = 0;
 
-        if (BlackUI.instance != null)
+        // Keep only locked slots across levels
+        var slots = save.data.shopSlots;
+        for (var i = slots.Count - 1; i >= 0; i--)
         {
-            BlackUI.instance.DoFade(1, 1, () =>
-            {
-                BattleManager.instance.Begin();
-                gameObject.SetActive(false);
-            });
+            if (!slots[i].isLocked)
+                slots.RemoveAt(i);
         }
-        else
+
+        UIManager.instance.blackUI.DoFade(1, 1, () =>
         {
+
             BattleManager.instance.Begin();
-            gameObject.SetActive(false);
-        }
+            Close();
+        });
     }
 
     int GetRefreshCost()

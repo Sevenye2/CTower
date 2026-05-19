@@ -11,17 +11,13 @@ namespace CardTower.TowerDefense
     {
         public void OnUpdate(ref SystemState state)
         {
-            var job = new BulletMoveJob
-            {
-                DeltaTime = SystemAPI.Time.DeltaTime
-            };
-
+            var job = new BulletMoveJob { DeltaTime = SystemAPI.Time.DeltaTime };
             state.Dependency = job.ScheduleParallel(state.Dependency);
         }
     }
 
     [BurstCompile]
-    [WithAll(typeof(BulletTag))]
+    [WithAll(typeof(EntityType), typeof(Bullet))]
     partial struct BulletMoveJob : IJobEntity
     {
         public float DeltaTime;

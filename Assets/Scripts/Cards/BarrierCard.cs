@@ -9,7 +9,7 @@ namespace CardTower.Cards
 {
     public sealed class BarrierCard : CardBase
     {
-        const float BarrierRadius = 3f;
+        const float BarrierRadius = 6f;
         const int BarrierCount = 6;
         const float BarHeight = 2f;
 
@@ -28,6 +28,7 @@ namespace CardTower.Cards
 
             Entity barrierPrefab = Entity.Null;
             Entity barPrefab = Entity.Null;
+
             using (var q = em.CreateEntityQuery(ComponentType.ReadOnly<PrefabComponentData>()))
             {
                 using var arr = q.ToComponentDataArray<PrefabComponentData>(Allocator.Temp);
@@ -38,42 +39,33 @@ namespace CardTower.Cards
                 }
             }
 
-            if (barrierPrefab == Entity.Null)
-                return;
 
-            var towerPos = GetTowerPosition(em);
             var ecb = new EntityCommandBuffer(Allocator.Temp);
 
             for (var i = 0; i < BarrierCount; i++)
             {
                 var angle = (float)i / BarrierCount * math.PI * 2f;
-                var pos = towerPos + new float3(
+                var pos = new float3(
                     math.cos(angle) * BarrierRadius, 0f, math.sin(angle) * BarrierRadius);
 
                 var barrier = ecb.Instantiate(barrierPrefab);
-                ecb.AddComponent<BattleTag>(barrier);
+                ecb.AddComponent<BattleEntity>(barrier);
                 ecb.SetComponent(barrier, LocalTransform.FromPosition(pos));
-
-                if (barPrefab != Entity.Null)
+                ecb.SetComponent(barrier, new LocalToWorld
                 {
-                    var barEntity = ecb.Instantiate(barPrefab);
-                    ecb.AddComponent(barEntity, new Parent { Value = barrier });
-                    ecb.SetComponent(barEntity,
-                        LocalTransform.FromPosition(new float3(0f, BarHeight, 0f)));
-                }
+                    Value = float4x4.TRS(pos, quaternion.identity, new float3(1f, 1f, 1f))
+                });
+
+                var barEntity = ecb.Instantiate(barPrefab);
+                ecb.AddComponent<BattleEntity>(barEntity);
+                ecb.AddComponent(barEntity, new Parent { Value = barrier });
+                ecb.SetComponent(barEntity,
+                    LocalTransform.FromPosition(new float3(0f, BarHeight, 0f)));
             }
 
             ecb.Playback(em);
             ecb.Dispose();
         }
 
-        static float3 GetTowerPosition(EntityManager em)
-        {
-            using var q = em.CreateEntityQuery(
-                ComponentType.ReadOnly<LocalTransform>(),
-                ComponentType.ReadOnly<TowerTag>());
-            using var arr = q.ToComponentDataArray<LocalTransform>(Allocator.Temp);
-            return arr.Length > 0 ? arr[0].Position : float3.zero;
-        }
     }
 }

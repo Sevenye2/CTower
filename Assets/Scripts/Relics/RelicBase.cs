@@ -1,4 +1,4 @@
-using CardTower.RuntimeEffects;
+using Unity.Entities;
 
 namespace CardTower.Relics
 {
@@ -6,11 +6,15 @@ namespace CardTower.Relics
     {
         public abstract RelicRuntimeConfig Config { get; }
 
-        public virtual void OnOwned(RuntimeEffectContext context)
+        public virtual void OnOwned(EntityManager em, Entity towerEntity)
         {
         }
 
-        public virtual void CreateRuntimeEffects(RuntimeEffectContext context)
+        public virtual void Activate(EntityManager em, Entity towerEntity)
+        {
+        }
+
+        public virtual void Deactivate()
         {
         }
     }

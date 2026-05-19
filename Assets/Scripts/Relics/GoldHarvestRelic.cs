@@ -1,9 +1,11 @@
-using CardTower.RuntimeEffects;
+using Unity.Entities;
 
 namespace CardTower.Relics
 {
     public sealed class GoldHarvestRelic : RelicBase
     {
+        const int GoldPerRound = 100;
+
         public override RelicRuntimeConfig Config => new RelicRuntimeConfig
         {
             Id = "gold_harvest",
@@ -14,9 +16,13 @@ namespace CardTower.Relics
             Price = 60
         };
 
-        public override void CreateRuntimeEffects(RuntimeEffectContext context)
+        public override void Activate(EntityManager em, Entity towerEntity)
         {
-            RuntimeEffectManager.Instance.Effects.Add(new GoldHarvestEffect(), context);
+        }
+
+        public override void Deactivate()
+        {
+            SaveDataManager.instance.AddGold(GoldPerRound);
         }
     }
 }

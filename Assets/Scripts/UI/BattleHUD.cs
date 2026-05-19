@@ -89,9 +89,13 @@ namespace CardTower.UI
 
         Entity FindTower(EntityManager em)
         {
-            using var query = em.CreateEntityQuery(ComponentType.ReadOnly<TowerTag>());
+            using var query = em.CreateEntityQuery(ComponentType.ReadOnly<EntityType>());
             using var entities = query.ToEntityArray(Unity.Collections.Allocator.Temp);
-            return entities.Length > 0 ? entities[0] : Entity.Null;
+            using var types = query.ToComponentDataArray<EntityType>(Unity.Collections.Allocator.Temp);
+            for (var i = 0; i < entities.Length; i++)
+                if (types[i].Value == EntityKind.Tower)
+                    return entities[i];
+            return Entity.Null;
         }
 
 

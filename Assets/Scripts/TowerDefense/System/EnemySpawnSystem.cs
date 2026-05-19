@@ -42,11 +42,10 @@ public partial struct EnemySpawnSystem : ISystem
         var ecb = new EntityCommandBuffer(Allocator.Temp);
 
         foreach (var (spawnerRw, entity) in SystemAPI
-                     .Query<RefRW<SpawnerData>>().WithAll<BattleTag>().WithEntityAccess())
+                     .Query<RefRW<SpawnerData>>().WithAll<BattleEntity>().WithEntityAccess())
         {
             ref var s = ref spawnerRw.ValueRW;
 
-            // Not yet active — wait for start time
             if (!s.IsActive)
             {
                 if (_time >= s.StartTime)
@@ -55,14 +54,12 @@ public partial struct EnemySpawnSystem : ISystem
                     continue;
             }
 
-            // Done spawning
             if (s.SpawnedCount >= s.TotalCount)
             {
                 ecb.DestroyEntity(entity);
                 continue;
             }
 
-            // Tick timer
             s.Timer -= dt;
             if (s.Timer > 0f)
                 continue;
@@ -76,10 +73,9 @@ public partial struct EnemySpawnSystem : ISystem
             {
                 var pos = GetSpawnPosition(ref s);
                 var instance = ecb.Instantiate(prefab);
-                ecb.AddComponent<BattleTag>(instance);
+                ecb.AddComponent<BattleEntity>(instance);
                 ecb.SetComponent(instance, LocalTransform.FromPosition(pos));
 
-                // Health override
                 if (s.OverrideHealth > 0f)
                 {
                     ecb.SetComponent(instance, new Health
@@ -89,22 +85,19 @@ public partial struct EnemySpawnSystem : ISystem
                     });
                 }
 
-                // Speed override
                 if (s.OverrideSpeed > 0f)
                 {
                     ecb.SetComponent(instance, new MoveSpeed { Value = s.OverrideSpeed });
                 }
 
-                // Scale override
                 if (s.OverrideScale > 0f)
                 {
                     var lt = new LocalTransform { Position = pos, Scale = s.OverrideScale };
                     ecb.SetComponent(instance, lt);
                 }
 
-                // Health bar
                 var barEntity = ecb.Instantiate(_barPrefab);
-                ecb.AddComponent<BattleTag>(barEntity);
+                ecb.AddComponent<BattleEntity>(barEntity);
                 ecb.AddComponent(barEntity, new Parent { Value = instance });
                 ecb.SetComponent(barEntity, LocalTransform.FromPosition(
                     new float3(0f, BarHeight, 0f)));

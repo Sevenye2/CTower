@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -86,7 +85,7 @@ namespace CardTower.UI
             for (var i = 0; i < transform.childCount; i++)
             {
                 var card = transform.GetChild(i).GetComponent<HandCardView>();
-                if (card != null)
+                if (card != null && !card.IsConsumed)
                     _cards.Add(card);
             }
 
@@ -111,12 +110,6 @@ namespace CardTower.UI
 
         void OnCardPlayed()
         {
-            StartCoroutine(RefreshAfterDestroyFrame());
-        }
-
-        IEnumerator RefreshAfterDestroyFrame()
-        {
-            yield return null;
             RefreshCardListFromChildren();
             Reflow();
         }

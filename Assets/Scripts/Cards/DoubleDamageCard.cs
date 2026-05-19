@@ -7,35 +7,34 @@ using Unity.Entities;
 
 namespace CardTower.Cards
 {
-    public sealed class RapidFireCard : CardBase
+    public sealed class DoubleDamageCard : CardBase
     {
-        const float Duration = 15f;
-        const float AttackSpeedBonus = 0.2f;
+        const float Duration = 5f;
+        const float DamageBonus = 1f;
 
         public override CardConfig Config => new CardConfig
         {
-            Id = "rapid_fire",
-            DisplayName = "急速射击",
-            Description = "15秒内塔攻速+20%。",
-            ManaCost = 2,
-            Price = 10
+            Id = "double_damage",
+            DisplayName = "力量爆发",
+            Description = "5秒内攻击力翻倍。",
+            ManaCost = 1,
+            Price = 8
         };
 
         public override void Play(RuntimeEffectContext context)
         {
             var buff = context.EntityManager.GetBuffer<BuffInstance>(context.TowerEntity);
-
             buff.Add(Create(context));
         }
 
-        private unsafe BuffInstance Create(RuntimeEffectContext context)
+        unsafe static BuffInstance Create(RuntimeEffectContext context)
         {
-            var data = (RapidFireData*)UnsafeUtility.Malloc(sizeof(RapidFireData), 4, Allocator.Persistent);
+            var data = (DoubleDamageData*)UnsafeUtility.Malloc(sizeof(DoubleDamageData), 4, Allocator.Persistent);
             data->RemainingTime = Duration;
-            data->AttackSpeedBonus = AttackSpeedBonus;
+            data->DamageBonus = DamageBonus;
 
             var modifiers = context.EntityManager.GetComponentData<EntityModifiers>(context.TowerEntity);
-            modifiers.AttackSpeed += AttackSpeedBonus;
+            modifiers.DamageDealt += DamageBonus;
             context.EntityManager.SetComponentData(context.TowerEntity, modifiers);
 
             return new BuffInstance
@@ -45,20 +44,20 @@ namespace CardTower.Cards
             };
         }
 
-        struct RapidFireData
+        struct DoubleDamageData
         {
             public float RemainingTime;
-            public float AttackSpeedBonus;
+            public float DamageBonus;
         }
 
         [BurstCompile]
         unsafe static void OnTick(ref BuffInstance self, ref TickContext ctx)
         {
-            var data = (RapidFireData*)self.Data;
+            var data = (DoubleDamageData*)self.Data;
             data->RemainingTime -= ctx.DT;
             if (data->RemainingTime > 0) return;
 
-            ctx.Modifiers->AttackSpeed -= data->AttackSpeedBonus;
+            ctx.Modifiers->DamageDealt -= data->DamageBonus;
             UnsafeUtility.Free(self.Data, Allocator.Persistent);
             self.Data = null;
             self.IsExpired = true;

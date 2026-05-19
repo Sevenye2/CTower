@@ -14,12 +14,14 @@ namespace CardTower.TowerDefense
         public override void Bake(BarrierAuthoring authoring)
         {
             var entity = GetEntity(TransformUsageFlags.Dynamic);
-            AddComponent(entity, new BarrierTag());
+            AddComponent(entity, new EntityType { Value = EntityKind.Barrier });
             AddComponent(entity, new Health
             {
                 Max = authoring.MaxHealth,
                 Current = authoring.MaxHealth
             });
+            AddComponent(entity, EntityModifiers.Identity);
+            AddBuffer<BuffInstance>(entity);
         }
     }
 }

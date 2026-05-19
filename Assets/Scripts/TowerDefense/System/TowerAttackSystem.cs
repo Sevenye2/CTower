@@ -1,4 +1,3 @@
-using CardTower.RuntimeEffects;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -22,7 +21,7 @@ namespace CardTower.TowerDefense
             state.RequireForUpdate<PrefabComponentData>();
 
             _enemyQuery = SystemAPI.QueryBuilder()
-                .WithAll<EnemyTag, LocalTransform, Health>()
+                .WithAll<EntityType, LocalTransform, Health>()
                 .Build();
         }
 
@@ -36,36 +35,56 @@ namespace CardTower.TowerDefense
 
             var time = (float)SystemAPI.Time.ElapsedTime;
             var em = state.EntityManager;
-            var modifiers = RuntimeEffectManager.Instance.Effects.CollectTowerModifiers();
+
+            var globalModifiers = EntityModifiers.Identity;
+            var towerEntity = Entity.Null;
+            using (var towerQuery = em.CreateEntityQuery(
+                ComponentType.ReadOnly<EntityType>(),
+                ComponentType.ReadOnly<EntityModifiers>()))
+            {
+                using var entities = towerQuery.ToEntityArray(Allocator.Temp);
+                using var types = towerQuery.ToComponentDataArray<EntityType>(Allocator.Temp);
+                using var mods = towerQuery.ToComponentDataArray<EntityModifiers>(Allocator.Temp);
+                for (var i = 0; i < types.Length; i++)
+                {
+                    if (types[i].Value == EntityKind.Tower)
+                    {
+                        globalModifiers = mods[i];
+                        towerEntity = entities[i];
+                        break;
+                    }
+                }
+            }
 
             var ecb = new EntityCommandBuffer(Allocator.Temp);
 
             foreach (var (atkRw, atkLt) in SystemAPI
                          .Query<RefRW<ProjectileTowerAttack>, RefRO<LocalTransform>>()
-                         .WithAll<BattleTag>())
+                         .WithAll<BattleEntity>())
             {
                 ref var atk = ref atkRw.ValueRW;
-                var finalShotsPerSecond = atk.ShotsPerSecond * modifiers.AttackSpeedMultiplier;
+                var finalShotsPerSecond = atk.ShotsPerSecond * globalModifiers.AttackSpeed;
                 if (time < atk.NextShotTime || finalShotsPerSecond <= 0f)
                     continue;
 
                 var towerPos = atkLt.ValueRO.Position;
-                var finalAttackRange = atk.AttackRange * modifiers.AttackRangeMultiplier;
-                var enemy = FindNearestEnemyInRange(towerPos, finalAttackRange);
+                var finalAttackRange = atk.AttackRange * globalModifiers.AttackRange;
+                var enemy = FindNearestEnemyInRange(em, towerPos, finalAttackRange);
                 if (enemy == Entity.Null)
                     continue;
 
                 var enemyPos = em.GetComponentData<LocalTransform>(enemy).Position;
                 var muzzlePos = new float3(towerPos.x, towerPos.y + BulletSpawnHeight, towerPos.z);
                 var dir = math.normalize(enemyPos - muzzlePos);
-                var finalDamage = atk.DamagePerShot * modifiers.DamageMultiplier;
+                var finalDamage = atk.DamagePerShot * globalModifiers.DamageDealt;
 
                 var bulletEntity = ecb.Instantiate(_bulletPrefab);
-                ecb.AddComponent<BattleTag>(bulletEntity);
+                ecb.AddComponent<BattleEntity>(bulletEntity);
                 ecb.SetComponent(bulletEntity, new Bullet
                 {
                     Velocity = dir * BulletSpeed,
-                    Damage = finalDamage
+                    Damage = finalDamage,
+                    Source = towerEntity
                 });
                 ecb.SetComponent(bulletEntity, LocalTransform.FromPosition(muzzlePos));
 
@@ -76,17 +95,20 @@ namespace CardTower.TowerDefense
             ecb.Dispose();
         }
 
-        Entity FindNearestEnemyInRange(float3 towerPosition, float attackRange)
+        Entity FindNearestEnemyInRange(EntityManager em, float3 towerPosition, float attackRange)
         {
             var best = Entity.Null;
             var bestDist = attackRange;
 
             var enemyEntities = _enemyQuery.ToEntityArray(Allocator.Temp);
+            var enemyTypes = _enemyQuery.ToComponentDataArray<EntityType>(Allocator.Temp);
             var enemyLts = _enemyQuery.ToComponentDataArray<LocalTransform>(Allocator.Temp);
             var enemyHealths = _enemyQuery.ToComponentDataArray<Health>(Allocator.Temp);
 
             for (var i = 0; i < enemyEntities.Length; i++)
             {
+                if (enemyTypes[i].Value != EntityKind.Enemy)
+                    continue;
                 if (enemyHealths[i].Current <= 0f)
                     continue;
 
@@ -102,6 +124,7 @@ namespace CardTower.TowerDefense
             }
 
             enemyEntities.Dispose();
+            enemyTypes.Dispose();
             enemyLts.Dispose();
             enemyHealths.Dispose();
 

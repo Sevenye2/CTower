@@ -12,7 +12,7 @@ namespace CardTower.TowerDefense
         public override void Bake(HealthBarAuthoring authoring)
         {
             var entity = GetEntity(authoring, TransformUsageFlags.Dynamic);
-            AddComponent<HealthBarTag>(entity);
+            AddComponent(entity, new EntityType { Value = EntityKind.HealthBar });
         }
     }
 }
