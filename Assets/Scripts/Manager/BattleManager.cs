@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using CardTower.Config;
 using CardTower.Relics;
-using CardTower.RuntimeEffects;
 using CardTower.UI;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -9,6 +8,13 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
+
+public enum PlayCommitResult
+{
+    Failed,
+    Committed,
+    Targeting
+}
 
 public class BattleManager : MonoBehaviour
 {
@@ -61,6 +67,9 @@ public class BattleManager : MonoBehaviour
     [Min(0)]
     [SerializeField] int startingResource = 10;
     int _currentResource;
+
+    // ── Targeting ──
+    HandCardView _targetingCardView;
 
     // ── Accessors ──
     public IReadOnlyList<string> DiscardPile => _discardPile;
@@ -158,6 +167,7 @@ public class BattleManager : MonoBehaviour
     public void End()
     {
         isBattling = false;
+        _targetingCardView = null;
 
         var em = World.EntityManager;
         var ecb = new EntityCommandBuffer(Allocator.Temp);
@@ -288,10 +298,10 @@ public class BattleManager : MonoBehaviour
         return true;
     }
 
-    public bool TryCommitPlay(string cardId, int manaCost)
+    public PlayCommitResult TryCommitPlay(string cardId, int manaCost, HandCardView cardView)
     {
         var cost = manaCost > 0 ? manaCost : playCost;
-        if (_currentResource < cost) return false;
+        if (_currentResource < cost) return PlayCommitResult.Failed;
 
         _currentResource -= cost;
         _discardPile.Add(cardId);
@@ -299,12 +309,34 @@ public class BattleManager : MonoBehaviour
 
         PlayEffect(cardId);
         DispatchCardPlayEffects();
-        return true;
+
+        if (cardView.Config != null && cardView.Config.RequiresTargeting)
+        {
+            _targetingCardView = cardView;
+            return PlayCommitResult.Targeting;
+        }
+
+        return PlayCommitResult.Committed;
+    }
+
+    public void CompleteTargetPlay()
+    {
+        if (_targetingCardView == null) return;
+        _targetingCardView.OnTargetingComplete();
+        _targetingCardView = null;
     }
 
     public void RefundCard(string cardId, int manaCost)
     {
         _currentResource += manaCost;
+
+        if (_targetingCardView != null)
+        {
+            _targetingCardView.OnTargetingCancel();
+            _targetingCardView = null;
+            return;
+        }
+
         _discardPile.Remove(cardId);
         _handCardIds.Add(cardId);
         _pendingDraws.Enqueue(cardId);
@@ -314,7 +346,7 @@ public class BattleManager : MonoBehaviour
     {
         if (!GameContentRegistry.Instance.TryGetCardEffect(cardId, out var effect)) return;
         var em = World.EntityManager;
-        effect.Play(new RuntimeEffectContext(em, FindTowerEntity(em)));
+        effect.Play(em, FindTowerEntity(em));
     }
 
     void DispatchCardPlayEffects()

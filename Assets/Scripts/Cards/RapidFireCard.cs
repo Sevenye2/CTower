@@ -1,4 +1,3 @@
-using CardTower.RuntimeEffects;
 using CardTower.TowerDefense;
 using Unity.Burst;
 using Unity.Collections;
@@ -21,22 +20,20 @@ namespace CardTower.Cards
             Price = 10
         };
 
-        public override void Play(RuntimeEffectContext context)
+        public override void Play(EntityManager em, Entity towerEntity)
         {
-            var buff = context.EntityManager.GetBuffer<BuffInstance>(context.TowerEntity);
-
-            buff.Add(Create(context));
+            em.GetBuffer<BuffInstance>(towerEntity).Add(Create(em, towerEntity));
         }
 
-        private unsafe BuffInstance Create(RuntimeEffectContext context)
+        unsafe static BuffInstance Create(EntityManager em, Entity towerEntity)
         {
             var data = (RapidFireData*)UnsafeUtility.Malloc(sizeof(RapidFireData), 4, Allocator.Persistent);
             data->RemainingTime = Duration;
             data->AttackSpeedBonus = AttackSpeedBonus;
 
-            var modifiers = context.EntityManager.GetComponentData<EntityModifiers>(context.TowerEntity);
+            var modifiers = em.GetComponentData<EntityModifiers>(towerEntity);
             modifiers.AttackSpeed += AttackSpeedBonus;
-            context.EntityManager.SetComponentData(context.TowerEntity, modifiers);
+            em.SetComponentData(towerEntity, modifiers);
 
             return new BuffInstance
             {

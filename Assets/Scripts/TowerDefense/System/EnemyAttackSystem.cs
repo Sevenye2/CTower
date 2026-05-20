@@ -128,19 +128,6 @@ namespace CardTower.TowerDefense
         static void ApplyMeleeDamage(int sortKey, Entity targetEntity, float damage,
             Health hp, EntityCommandBuffer.ParallelWriter ecb)
         {
-            if (hp.Shield > 0f)
-            {
-                if (hp.Shield >= damage)
-                {
-                    hp.Shield -= damage;
-                    ecb.SetComponent(sortKey, targetEntity, hp);
-                    return;
-                }
-
-                damage -= hp.Shield;
-                hp.Shield = 0f;
-            }
-
             hp.Current -= damage;
             ecb.SetComponent(sortKey, targetEntity, hp);
         }

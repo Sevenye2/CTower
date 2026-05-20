@@ -51,7 +51,7 @@ OnBattleEnd  // 战斗结束，BattleManager.End() 分发
 
 ### Card 层 (`Assets/Scripts/Cards/`)
 
-- `CardBase` — 抽象基类，`Play(RuntimeEffectContext)` 为入口
+- `CardBase` — 抽象基类，`Play(EntityManager, Entity)` 为入口
 - 每个 Card 负责往 tower 的 `DynamicBuffer<BuffInstance>` 添加 buff
 - 无持续时间的卡片（如 `SlowFieldCard`）直接操作 ECS 实体
 - `GroundTargetingHelper` — 地面选择通用辅助
@@ -107,6 +107,3 @@ BattleManager.End()
 - `Assets/Scripts/Relics/MeteorMarkRelic.cs` (OnKill)
 - `Assets/Scripts/Relics/GoldHarvestRelic.cs` (Deactivate)
 - `Assets/Scripts/Relics/UnknownRelic.cs`
-
-### Runtime
-- `Assets/Scripts/RuntimeEffects/RuntimeEffectContext.cs` — 仅 `{EntityManager, TowerEntity}` 数据传递

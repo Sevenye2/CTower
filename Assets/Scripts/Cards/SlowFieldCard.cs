@@ -1,4 +1,3 @@
-using CardTower.RuntimeEffects;
 using CardTower.TowerDefense;
 using Cysharp.Threading.Tasks;
 using Unity.Collections;
@@ -22,17 +21,17 @@ namespace CardTower.Cards
             DisplayName = "减速场",
             Description = "选择一片区域，范围内敌人减速20%持续10秒。右键取消返还法力。",
             ManaCost = 1,
-            Price = 6
+            Price = 6,
+            RequiresTargeting = true
         };
 
-        public override void Play(RuntimeEffectContext context)
+        public override void Play(EntityManager em, Entity towerEntity)
         {
-            Run(context).Forget();
+            Run(em).Forget();
         }
 
-        async UniTaskVoid Run(RuntimeEffectContext context)
+        async UniTaskVoid Run(EntityManager em)
         {
-            var em = context.EntityManager;
 
             // Phase 1: targeting
             var target = await GroundTargetingHelper.WaitForGroundTarget(AoeRadius, IndicatorColor, "SlowFieldIndicator");
@@ -41,6 +40,8 @@ namespace CardTower.Cards
                 BattleManager.instance.RefundCard(Config.Id, Config.ManaCost);
                 return;
             }
+
+            BattleManager.instance.CompleteTargetPlay();
 
             var center = target.Value;
             var indicator = CreateSlowFieldIndicator(center);

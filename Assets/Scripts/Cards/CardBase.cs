@@ -1,4 +1,4 @@
-using CardTower.RuntimeEffects;
+using Unity.Entities;
 
 namespace CardTower.Cards
 {
@@ -6,7 +6,7 @@ namespace CardTower.Cards
     {
         public abstract CardConfig Config { get; }
 
-        public abstract void Play(RuntimeEffectContext context);
+        public abstract void Play(EntityManager em, Entity towerEntity);
     }
 
     public sealed class CardConfig
@@ -16,5 +16,6 @@ namespace CardTower.Cards
         public string Description;
         public int ManaCost;
         public int Price;
+        public bool RequiresTargeting;
     }
 }

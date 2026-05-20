@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using CardTower.RuntimeEffects;
+using Unity.Entities;
 using CardTower.TowerDefense;
 using Cysharp.Threading.Tasks;
 using Unity.Collections;
@@ -26,7 +26,7 @@ namespace CardTower.Cards
             Price = 15
         };
 
-        public override void Play(RuntimeEffectContext context)
+        public override void Play(EntityManager em, Entity towerEntity)
         {
             Run().Forget();
         }

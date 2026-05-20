@@ -69,16 +69,29 @@ namespace CardTower.TowerDefense
                 if (hp.Current <= 0f)
                     continue;
 
-                var finalDamage = hit.Damage
+                var rawDamage = hit.Damage
                     * em.GetComponentData<EntityModifiers>(hit.Target).DamageTaken;
-
-                hp.Current -= finalDamage;
-                ecb.SetComponent(hit.Target, hp);
 
                 var targetPos = em.GetComponentData<LocalTransform>(hit.Target).Position;
                 var sourcePos = GetPosition(em, hit.Source);
 
-                DispatchDamageEvents(em, ref ecb, hit.Source, hit.Target, finalDamage, sourcePos, targetPos);
+                var dmgCtx = new DamageContext
+                {
+                    Source = hit.Source,
+                    Target = hit.Target,
+                    Amount = rawDamage,
+                    SourcePosition = sourcePos,
+                    TargetPosition = targetPos,
+                    ECB = ecb
+                };
+
+                DispatchDamageEvents(em, ref dmgCtx);
+
+                if (dmgCtx.Amount <= 0f)
+                    continue; // fully absorbed
+
+                hp.Current -= dmgCtx.Amount;
+                ecb.SetComponent(hit.Target, hp);
 
                 if (hp.Current > 0f)
                     continue;
@@ -144,20 +157,9 @@ namespace CardTower.TowerDefense
                 : default;
         }
 
-        static void DispatchDamageEvents(EntityManager em, ref EntityCommandBuffer ecb,
-            Entity source, Entity target, float amount, float3 sourcePos, float3 targetPos)
+        static void DispatchDamageEvents(EntityManager em, ref DamageContext ctx)
         {
-            var ctx = new DamageContext
-            {
-                Source = source,
-                Target = target,
-                Amount = amount,
-                SourcePosition = sourcePos,
-                TargetPosition = targetPos,
-                ECB = ecb
-            };
-
-            var buffs = em.GetBuffer<BuffInstance>(target);
+            var buffs = em.GetBuffer<BuffInstance>(ctx.Target);
             for (int i = 0; i < buffs.Length; i++)
             {
                 ref var buff = ref buffs.ElementAt(i);
@@ -165,9 +167,9 @@ namespace CardTower.TowerDefense
                     buff.OnTakeDamage.Invoke(ref ctx, ref buff);
             }
 
-            if (source != Entity.Null)
+            if (ctx.Source != Entity.Null)
             {
-                buffs = em.GetBuffer<BuffInstance>(source);
+                buffs = em.GetBuffer<BuffInstance>(ctx.Source);
                 for (int i = 0; i < buffs.Length; i++)
                 {
                     ref var buff = ref buffs.ElementAt(i);

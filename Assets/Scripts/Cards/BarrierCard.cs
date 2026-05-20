@@ -1,4 +1,3 @@
-using CardTower.RuntimeEffects;
 using CardTower.TowerDefense;
 using Unity.Collections;
 using Unity.Entities;
@@ -22,9 +21,8 @@ namespace CardTower.Cards
             Price = 12
         };
 
-        public override void Play(RuntimeEffectContext context)
+        public override void Play(EntityManager em, Entity towerEntity)
         {
-            var em = context.EntityManager;
 
             Entity barrierPrefab = Entity.Null;
             Entity barPrefab = Entity.Null;

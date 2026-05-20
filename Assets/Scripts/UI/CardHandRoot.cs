@@ -3,133 +3,105 @@ using UnityEngine;
 
 namespace CardTower.UI
 {
-    /// <summary>
-    /// 手牌容器：内置排版与悬停/出牌参数；子物体上的 HandCardView 从此处读取数值。
-    /// </summary>
     [DisallowMultipleComponent]
+    [RequireComponent(typeof(CanvasGroup))]
     public class CardHandRoot : MonoBehaviour
     {
         [Header("Layout")]
-        [Tooltip("手牌横向间距（像素）。")]
         [Min(0f)]
         [SerializeField] float spacingPixels = 96f;
+        [Min(0f)]
+        [SerializeField] float hoverSpreadPixels = 24f;
 
         [Header("Hover")]
-        [Tooltip("鼠标悬停时的缩放倍数（相对 resting local scale）。")]
         [Min(1f)]
         [SerializeField] float hoverScale = 1.08f;
-
-        [Tooltip("悬停目标上移量（像素）。")]
         [Min(0f)]
         [SerializeField] float hoverLiftPixels = 36f;
-
-        [Tooltip("上移/下移的线速度（像素/秒），用于悬停过渡。")]
         [Min(0f)]
         [SerializeField] float hoverLiftPixelsPerSecond = 280f;
-
-        [Tooltip("缩放回目标的线速度（缩放倍数/秒），用于悬停过渡。")]
         [Min(0f)]
         [SerializeField] float hoverScaleUnitsPerSecond = 2f;
 
         [Header("Drag")]
-        [Tooltip("从开始拖动位置算起，向上移动超过该像素视为出牌。")]
         [Min(0f)]
         [SerializeField] float playDragThresholdPixels = 120f;
+
+        [Header("Animation")]
+        [SerializeField] Vector2 enterFromPosition = new Vector2(0f, -200f);
+        [Min(0.01f)]
+        [SerializeField] float enterDuration = 0.35f;
+        [SerializeField] Vector2 playTargetPosition = new Vector2(200f, 400f);
+        [Min(0.01f)]
+        [SerializeField] float playDuration = 0.3f;
 
         [Header("Prefab")]
         [SerializeField] HandCardView cardPrefab;
 
         public float SpacingPixels => spacingPixels;
+        public float HoverSpreadPixels => hoverSpreadPixels;
         public float HoverScale => hoverScale;
         public float HoverLiftPixels => hoverLiftPixels;
         public float HoverLiftPixelsPerSecond => hoverLiftPixelsPerSecond;
         public float HoverScaleUnitsPerSecond => hoverScaleUnitsPerSecond;
         public float PlayDragThresholdPixels => playDragThresholdPixels;
+        public Vector2 EnterFromPosition => enterFromPosition;
+        public float EnterDuration => enterDuration;
+        public Vector2 PlayTargetPosition => playTargetPosition;
+        public float PlayDuration => playDuration;
 
-        public int HandCardCount
-        {
-            get
-            {
-                var n = 0;
-                for (var i = 0; i < transform.childCount; i++)
-                {
-                    if (transform.GetChild(i).GetComponent<HandCardView>() != null)
-                        n++;
-                }
+        public int? HoveredIndex { get; set; }
+        public int HandCardCount => _cards.Count;
 
-                return n;
-            }
-        }
-
-        readonly List<HandCardView> _cards = new List<HandCardView>();
+        readonly List<HandCardView> _cards = new();
+        int _nextHandIndex;
+        CanvasGroup _canvasGroup;
 
         void Awake()
         {
-            RefreshCardListFromChildren();
-        }
-
-        void OnEnable()
-        {
-            Reflow();
-        }
-
-        void OnValidate()
-        {
-            RefreshCardListFromChildren();
-            Reflow();
-        }
-
-        public void RefreshCardListFromChildren()
-        {
-            _cards.Clear();
-            for (var i = 0; i < transform.childCount; i++)
+            _canvasGroup = GetComponent<CanvasGroup>();
+            if (_canvasGroup == null)
+                _canvasGroup = gameObject.AddComponent<CanvasGroup>();
+            foreach (var card in GetComponentsInChildren<HandCardView>())
             {
-                var card = transform.GetChild(i).GetComponent<HandCardView>();
-                if (card != null && !card.IsConsumed)
-                    _cards.Add(card);
-            }
-
-            foreach (var card in _cards)
-                card.onPlayed.RemoveListener(OnCardPlayed);
-            foreach (var card in _cards)
+                if (card.IsConsumed) continue;
+                card.HandIndex = _nextHandIndex++;
                 card.onPlayed.AddListener(OnCardPlayed);
+                _cards.Add(card);
+            }
+            foreach (var card in _cards)
+                card.SnapToRestPosition();
         }
 
         public HandCardView AddCard(HandCardView prefab)
         {
-            var instance = Instantiate(prefab, transform);
-            RefreshCardListFromChildren();
-            Reflow();
+            var prefabToUse = prefab != null ? prefab : cardPrefab;
+            var instance = Instantiate(prefabToUse, transform);
+            instance.HandIndex = _nextHandIndex++;
+            instance.onPlayed.AddListener(OnCardPlayed);
+            _cards.Add(instance);
+            instance.BeginEnter(enterFromPosition);
             return instance;
-        }
-
-        public HandCardView AddCardFromPrefab()
-        {
-            return AddCard(cardPrefab);
         }
 
         void OnCardPlayed()
         {
-            RefreshCardListFromChildren();
-            Reflow();
+            _cards.RemoveAll(c => c == null || c.IsConsumed);
+            RenumberIndices();
         }
 
-        public void Reflow()
+        void RenumberIndices()
         {
-            if (_cards.Count == 0)
-                return;
+            _nextHandIndex = 0;
+            foreach (var card in _cards)
+                card.HandIndex = _nextHandIndex++;
+        }
 
-            var spacing = spacingPixels;
-            var totalWidth = spacing * Mathf.Max(0, _cards.Count - 1);
-            var startX = -totalWidth * 0.5f;
-
-            for (var i = 0; i < _cards.Count; i++)
-            {
-                var card = _cards[i];
-                var rt = (RectTransform)card.transform;
-                var pos = new Vector2(startX + i * spacing, rt.anchoredPosition.y);
-                card.SetRestAnchoredPosition(pos);
-            }
+        public void SetVisible(bool visible)
+        {
+            _canvasGroup.alpha = visible ? 1f : 0f;
+            _canvasGroup.interactable = visible;
+            _canvasGroup.blocksRaycasts = visible;
         }
     }
 }

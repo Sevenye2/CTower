@@ -11,7 +11,7 @@ namespace CardTower.Cards
             var indicator = CreateGroundIndicator(indicatorRadius, indicatorColor, indicatorName);
             var handRoot = UIManager.instance?.battleHUD?.cardContainer;
             if (handRoot != null)
-                handRoot.gameObject.SetActive(false);
+                handRoot.SetVisible(false);
 
             try
             {
@@ -38,7 +38,7 @@ namespace CardTower.Cards
             finally
             {
                 if (handRoot != null)
-                    handRoot.gameObject.SetActive(true);
+                    handRoot.SetVisible(true);
                 if (indicator != null)
                     Object.Destroy(indicator);
             }

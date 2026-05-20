@@ -1,9 +1,9 @@
-using CardTower.RuntimeEffects;
 using CardTower.TowerDefense;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
+using Unity.Mathematics;
 
 namespace CardTower.Cards
 {
@@ -21,53 +21,64 @@ namespace CardTower.Cards
             Price = 8
         };
 
-        public override void Play(RuntimeEffectContext context)
+        public override void Play(EntityManager em, Entity towerEntity)
         {
-            var buff = context.EntityManager.GetBuffer<BuffInstance>(context.TowerEntity);
-            buff.Add(Create(context));
+            var hp = em.GetComponentData<Health>(towerEntity);
+            hp.Shield = ShieldAmount;
+            em.SetComponentData(towerEntity, hp);
+
+            em.GetBuffer<BuffInstance>(towerEntity).Add(Create(em, towerEntity));
         }
 
         [BurstCompile]
-        unsafe static BuffInstance Create(RuntimeEffectContext context)
+        unsafe static BuffInstance Create(EntityManager em, Entity towerEntity)
         {
             var data = (TowerShieldData*)UnsafeUtility.Malloc(sizeof(TowerShieldData), 4, Allocator.Persistent);
             data->RemainingTime = Duration;
-            data->ShieldAmount = ShieldAmount;
-
-            var tower = context.TowerEntity;
-            var em = context.EntityManager;
-            if (em.HasComponent<Health>(tower))
-            {
-                var hp = em.GetComponentData<Health>(tower);
-                hp.Shield += ShieldAmount;
-                em.SetComponentData(tower, hp);
-            }
+            data->ShieldRemaining = ShieldAmount;
 
             return new BuffInstance
             {
                 Data = data,
-                OnTick = BurstCompiler.CompileFunctionPointer<OnTick>(OnTick)
+                OnTick = BurstCompiler.CompileFunctionPointer<OnTick>(OnTick),
+                OnTakeDamage = BurstCompiler.CompileFunctionPointer<OnTakeDamage>(OnTakeDamage)
             };
         }
 
         struct TowerShieldData
         {
             public float RemainingTime;
-            public float ShieldAmount;
+            public float ShieldRemaining;
         }
 
         [BurstCompile]
-        static unsafe void OnTick(ref BuffInstance self, ref TickContext ctx)
+        unsafe static void OnTick(ref BuffInstance self, ref TickContext ctx)
         {
             var data = (TowerShieldData*)self.Data;
             data->RemainingTime -= ctx.DT;
-            if (data->RemainingTime > 0) return;
 
-            ctx.Health->Shield-= data->ShieldAmount;
-            if(ctx.Health->Shield < 0) ctx.Health->Shield = 0;
+            if (data->RemainingTime > 0)
+            {
+                ctx.Health->Shield = data->ShieldRemaining;
+                return;
+            }
+
+            ctx.Health->Shield = 0;
             UnsafeUtility.Free(self.Data, Allocator.Persistent);
             self.Data = null;
             self.IsExpired = true;
+        }
+
+        [BurstCompile]
+        static unsafe void OnTakeDamage(ref DamageContext ctx, ref BuffInstance self)
+        {
+            var data = (TowerShieldData*)self.Data;
+            var absorb = math.min(data->ShieldRemaining, ctx.Amount);
+            data->ShieldRemaining -= absorb;
+            ctx.Amount -= absorb;
+
+            if (data->ShieldRemaining <= 0f)
+                self.IsExpired = true;
         }
     }
 }
