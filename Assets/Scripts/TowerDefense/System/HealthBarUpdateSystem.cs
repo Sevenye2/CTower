@@ -74,7 +74,7 @@ namespace CardTower.TowerDefense
 
             var ratio = math.clamp(health.Current / math.max(0.001f, health.Max), 0f, 1f);
             var pos = ltw.Position;
-            var sca = new float3(ratio * 2.6f, 0.4f, 1f);
+            var sca = new float3(ratio * 0.1f, 0.01f, 1f);
             var mat = float4x4.TRS(pos, CamRot, sca);
             ltw = new LocalToWorld { Value = mat };
         }

@@ -108,3 +108,6 @@ MonoBehaviour:
   AttackRange: 2.5
   DamagePerHit: 6
   HitIntervalSeconds: 1
+  IsRanged: 0
+  BulletDuration: 0.5
+  BulletMaxHeight: 4
